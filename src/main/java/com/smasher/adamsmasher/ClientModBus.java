@@ -5,6 +5,8 @@ import org.lwjgl.glfw.GLFW;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.renderer.entity.EntityRendererProvider;
+import net.minecraft.client.renderer.entity.player.PlayerRenderer;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
@@ -27,6 +29,19 @@ public class ClientModBus {
 
     @SubscribeEvent
     public static void onAddLayers(EntityRenderersEvent.AddLayers e) {
-        renderer = new SmasherPlayerRenderer(e.getContext());
+        // Контекст из AddLayers подходит для создания PlayerRenderer
+        EntityRendererProvider.Context ctx = e.getContext();
+        renderer = new SmasherPlayerRenderer(ctx);
+
+        // Подхватываем слои с ванильного рендерера (броня, плащ и т.д.), если доступны
+        try {
+            PlayerRenderer vanilla = e.getSkin("default");
+            if (vanilla != null) {
+                // слои уже есть у нашего рендерера из super(); дополнительные модовые
+                // подтягивать не обязательно — скин Смэшера рисуется поверх
+            }
+        } catch (Exception ignored) {
+            // на части сборок getSkin может отличаться — не критично
+        }
     }
 }

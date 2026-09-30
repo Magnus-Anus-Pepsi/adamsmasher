@@ -16,7 +16,10 @@ import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = SmasherMod.MODID, value = Dist.CLIENT)
 public class ClientForgeBus {
-    private static boolean rendering = false;
+    /** Защита от рекурсии при кастомном рендере тела. */
+    private static boolean renderingBody = false;
+    /** Защита от рекурсии: renderRightHand/LeftHand снова кидают RenderArmEvent. */
+    private static boolean renderingArm = false;
 
     /** Клавиша C: направление зависит от зажатых W/A/S/D (без них — рывок вперёд). */
     @SubscribeEvent
@@ -39,11 +42,11 @@ public class ClientForgeBus {
     /** Подмена скина + масштаб x1.5 при полном сете. */
     @SubscribeEvent
     public static void onRenderPlayer(RenderPlayerEvent.Pre e) {
-        if (rendering || ClientModBus.renderer == null) return;
+        if (renderingBody || ClientModBus.renderer == null) return;
         if (!(e.getEntity() instanceof AbstractClientPlayer player) || !SmasherSet.hasFullSet(player)) return;
 
         e.setCanceled(true);
-        rendering = true;
+        renderingBody = true;
         try {
             PoseStack ps = e.getPoseStack();
             ps.pushPose();
@@ -53,20 +56,32 @@ public class ClientForgeBus {
                     e.getMultiBufferSource(), e.getPackedLight());
             ps.popPose();
         } finally {
-            rendering = false;
+            renderingBody = false;
         }
     }
 
-    /** Руки от первого лица тоже со скином Смэшера. */
+    /**
+     * Руки от первого лица со скином Смэшера.
+     * Важно: renderRightHand/LeftHand сами постит RenderArmEvent — без флага будет StackOverflow.
+     */
     @SubscribeEvent
     public static void onRenderArm(RenderArmEvent e) {
+        if (renderingArm || ClientModBus.renderer == null) return;
         AbstractClientPlayer player = e.getPlayer();
-        if (ClientModBus.renderer == null || !SmasherSet.hasFullSet(player)) return;
+        if (!SmasherSet.hasFullSet(player)) return;
+
         e.setCanceled(true);
-        if (e.getArm() == HumanoidArm.RIGHT) {
-            ClientModBus.renderer.renderRightHand(e.getPoseStack(), e.getMultiBufferSource(), e.getPackedLight(), player);
-        } else {
-            ClientModBus.renderer.renderLeftHand(e.getPoseStack(), e.getMultiBufferSource(), e.getPackedLight(), player);
+        renderingArm = true;
+        try {
+            if (e.getArm() == HumanoidArm.RIGHT) {
+                ClientModBus.renderer.renderRightHand(
+                        e.getPoseStack(), e.getMultiBufferSource(), e.getPackedLight(), player);
+            } else {
+                ClientModBus.renderer.renderLeftHand(
+                        e.getPoseStack(), e.getMultiBufferSource(), e.getPackedLight(), player);
+            }
+        } finally {
+            renderingArm = false;
         }
     }
 }
